@@ -18,7 +18,10 @@ package uk.ac.cam.crim.inspiringfutures.server;
 
 import org.json.JSONException;
 
-import java.io.*;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.IOException;
 import java.sql.*;
 import java.util.Properties;
 
@@ -31,19 +34,19 @@ public class RemoteDatabaseHelper {
 //    public static final int SQLITE_MAX_LENGTH = 1000000000;
     public static final String CONFIG_FILE = "database.cfg";
 
-    public static final String KEY_HOST = "host";
+    public static final String KEY_HOSTNAME = "hostname";
     public static final String KEY_DATABASE_NAME = "database_name";
     public static final String KEY_USERNAME = "username";
     public static final String KEY_PASSWORD = "password";
 
-    public static final String DEFAULT_HOST = "localhost";
+    public static final String DEFAULT_HOSTNAME = "localhost";
     public static final String DEFAULT_DATABASE_NAME = "inspiringfutures";
-    public static final String DEFAULT_USERNAME = "root";
-    public static final String DEFAULT_PASSWORD = "";
+    public static final String DEFAULT_USERNAME = "postgres";
+    public static final String DEFAULT_PASSWORD = "postgres";
 
 //    public static final String TAG = "RemoteDatabaseHelper";
 
-    private static final String TABLE_BASE_COLUMNS = RemoteDatabaseSchema.Columns.DEVICE_ID + " VARCHAR(20) NOT NULL    , " +
+    private static final String TABLE_BASE_COLUMNS = RemoteDatabaseSchema.Columns.DEVICE_ID + " TEXT NOT NULL    , " +
                                                      RemoteDatabaseSchema.Columns.TIMESTAMP + " TIMESTAMP   NOT NULL      ";
 
     private final String mDeviceId;
@@ -53,7 +56,7 @@ public class RemoteDatabaseHelper {
     //    private final JSONContentValues mResponses;
     private final JSONKeyValuePair[] mResponses;
 
-    private final String mHost;
+    private final String mHostname;
     private final String mDatabaseName;
     private final String mUsername;
     private final String mPassword;
@@ -85,20 +88,25 @@ public class RemoteDatabaseHelper {
             if (configFile.createNewFile()) {
                 // Config file doesn't exist, create with default values
                 Properties defaultProperties = new Properties();
-                defaultProperties.setProperty(KEY_HOST, DEFAULT_HOST);
+                defaultProperties.setProperty(KEY_HOSTNAME, DEFAULT_HOSTNAME);
                 defaultProperties.setProperty(KEY_DATABASE_NAME, DEFAULT_DATABASE_NAME);
                 defaultProperties.setProperty(KEY_USERNAME, DEFAULT_USERNAME);
                 defaultProperties.setProperty(KEY_PASSWORD, DEFAULT_PASSWORD);
                 outStream = new FileOutputStream(configFile);
                 defaultProperties.store(outStream, "Inspiring Futures database configuration");
-                throw new RuntimeException("Configuration file not found, new file created with default properties");
+//                throw new RuntimeException("Configuration file not found, new file created with default properties");
+                // Attempt to use default properties
+                mHostname = DEFAULT_HOSTNAME;
+                mDatabaseName = DEFAULT_DATABASE_NAME;
+                mUsername = DEFAULT_USERNAME;
+                mPassword =DEFAULT_PASSWORD;
             } else {
                 // Config file exists, load properties
-                inStream  = new FileInputStream(configFile);
+                inStream = new FileInputStream(configFile);
                 Properties dbProperties = new Properties();
                 dbProperties.load(inStream);
 
-                mHost = dbProperties.getProperty(KEY_HOST);
+                mHostname = dbProperties.getProperty(KEY_HOSTNAME);
                 mDatabaseName = dbProperties.getProperty(KEY_DATABASE_NAME);
                 mUsername = dbProperties.getProperty(KEY_USERNAME);
                 mPassword = dbProperties.getProperty(KEY_PASSWORD);
@@ -115,9 +123,9 @@ public class RemoteDatabaseHelper {
             }
         }
 
-        // Load MySQL driver
+        // Load PostgreSQL driver
         try {
-            Class.forName("com.mysql.jdbc.Driver");
+            Class.forName("org.postgresql.Driver");
         } catch (ClassNotFoundException e) {
             e.printStackTrace();
             throw new RuntimeException("Database driver not found");
@@ -125,10 +133,11 @@ public class RemoteDatabaseHelper {
     }
 
     private void openDatabase() throws SQLException {
-        mDatabaseConnection = DriverManager.getConnection("jdbc:mysql://" + mHost
-                + "/" + mDatabaseName + "?"
-                + "user=" + mUsername
-                + "&password=" + mPassword);
+        mDatabaseConnection = DriverManager.getConnection(
+                "jdbc:postgresql://" + mHostname + "/" + mDatabaseName,
+                mUsername,
+                mPassword
+        );
     }
 
     private void closeDatabse() throws SQLException {
@@ -150,15 +159,16 @@ public class RemoteDatabaseHelper {
                 Object sampleResponse = sampleKVPair.getValue();
                 // byte[], Boolean, Byte, Double, Float, Integer, Long, Short, String
                 if (sampleResponse instanceof byte[]) {
-                    questionColumn += "BLOB";
+                    // TODO Wrap byte[] in a JSON holding filetype, save and file on server with filename in database
+                    questionColumn += "BYTEA";
                 } else if (sampleResponse instanceof Boolean) {
                     questionColumn += "BOOLEAN";
                 } else if (sampleResponse instanceof Byte) {
-                    questionColumn += "BYTE";
+                    questionColumn += "SMALLINT";
                 } else if (sampleResponse instanceof Double) {
-                    questionColumn += "DOUBLE";
+                    questionColumn += "FLOAT8";
                 } else if (sampleResponse instanceof Float) {
-                    questionColumn += "FLOAT";
+                    questionColumn += "FLOAT4";
                 } else if (sampleResponse instanceof Integer) {
                     questionColumn += "INTEGER";
                 } else if (sampleResponse instanceof Long) {
@@ -188,8 +198,8 @@ public class RemoteDatabaseHelper {
                 RemoteDatabaseSchema.Columns.DEVICE_ID + ", " +
                 RemoteDatabaseSchema.Columns.TIMESTAMP;
         String valuesString = " VALUES(" +
-                "\"" + mDeviceId + "\"" + ", " +
-                "FROM_UNIXTIME(" + mTimestamp + ")";
+                "'" + mDeviceId + "'" + ", " +
+                "TO_TIMESTAMP(" + mTimestamp + ")";
         for (JSONKeyValuePair response : mResponses) {
             insertStatement += ", " + response.getKey();
             valuesString += ", ?";
@@ -204,9 +214,9 @@ public class RemoteDatabaseHelper {
         for (int i=0; i<mResponses.length; i++) {
             Object value = mResponses[i].getValue();
             if (value instanceof byte[]) {
-                // TODO Don't know if this will work
-//                mInsertStatement.setBytes(i+1, (byte[]) value);
-                mInsertStatement.setBlob(i+1, new ByteArrayInputStream((byte[]) value) );
+                // TODO Don't know if this will work - Change to store filenames
+                mInsertStatement.setBytes(i+1, (byte[]) value);
+//                mInsertStatement.setBlob(i+1, new ByteArrayInputStream((byte[]) value) );
             } else if (value instanceof Boolean) {
                 mInsertStatement.setBoolean(i+1, (Boolean) value);
             } else if (value instanceof Byte) {
@@ -222,7 +232,7 @@ public class RemoteDatabaseHelper {
             } else if (value instanceof Short) {
                 mInsertStatement.setShort(i+1, (Short) value);
             } else if (value instanceof String) {
-                mInsertStatement.setString(i+1, "\"" + (String) value + "\"");
+                mInsertStatement.setString(i+1, (String) value);
             }
         }
         mInsertStatement.execute();
@@ -235,21 +245,20 @@ public class RemoteDatabaseHelper {
         }
     }
 
-    public static void main(String[] args) throws JSONException, SQLException {
-        // TODO IMORTANT Delete this if block, for troubleshooting only
-        if (2 <= args.length) {
-            try {
-                File testfile = new File("test.txt");
-                testfile.createNewFile();
-                FileOutputStream outStream = new FileOutputStream(testfile);
-                outStream.write(args[0].getBytes());
-                outStream.write("\n".getBytes());
-                outStream.write(args[1].getBytes());
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
-
-        }
+    public static void main(String[] args) {
+//        // TODO IMORTANT Delete this if block, for troubleshooting only
+//        if (2 <= args.length) {
+//            try {
+//                File testfile = new File("test.txt");
+//                testfile.createNewFile();
+//                FileOutputStream outStream = new FileOutputStream(testfile);
+//                outStream.write(args[0].getBytes());
+//                outStream.write("\n".getBytes());
+//                outStream.write(args[1].getBytes());
+//            } catch (IOException e) {
+//                e.printStackTrace();
+//            }
+//        }
 
         if (4 == args.length) {
             RemoteDatabaseHelper helper = null;
@@ -263,12 +272,9 @@ public class RemoteDatabaseHelper {
                 helper.createTable();
                 helper.createInsertStatement();
                 helper.insert();
-//            } catch (SQLException e) {
-//                // TODO
-//                e.printStackTrace();
-//            } catch (JSONException e) {
-//                // TODO
-//                e.printStackTrace();
+            } catch (SQLException | JSONException e) {
+                // Do something here?
+                e.printStackTrace();
             } finally {
                 if (null != helper) {
                     try {

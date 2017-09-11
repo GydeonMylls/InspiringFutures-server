@@ -23,7 +23,7 @@ Copyright 2017 Gideon Mills
     $KEY_TIMESTAMP = 'timestamp';
     $KEY_RESPONSES = 'responses';
     
-    $JAR_FILE = 'server.jar';
+    $JAR_FILE = 'broker.jar';
 ?>
 
 Landing page for the Inspiring Futures project by the University of Cambridge's <a href="http://www.crim.cam.ac.uk/">Institute of Criminology</a>
