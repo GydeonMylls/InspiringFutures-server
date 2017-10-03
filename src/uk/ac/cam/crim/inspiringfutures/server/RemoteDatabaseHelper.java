@@ -17,15 +17,21 @@
 package uk.ac.cam.crim.inspiringfutures.server;
 
 import org.json.JSONException;
+import uk.ac.cam.crim.inspiringfutures.JSONWrappers.JSONResponseWrapper;
+import uk.ac.cam.crim.inspiringfutures.JSONWrappers.JSONResponsesWrapper;
 
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
-import java.io.IOException;
+import java.io.*;
 import java.sql.*;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Properties;
 
 /**
+ * <p>
+ *     Broker for PostgreSQL database; constructs tables as necessary and inserts data, handling special types properly.
+ *     The main method takes four arguments: device id, questionnaire id, timestamp, responses (a string representation of a JSONResponsesWrapper)
+ *     The questionnaire id is used as the table name.
+ * </p>
  * <p> Created by  Gideon Mills on 21/08/2017 for InspiringFutures. </p>
  */
 
@@ -33,6 +39,7 @@ public class RemoteDatabaseHelper {
 
 //    public static final int SQLITE_MAX_LENGTH = 1000000000;
     public static final String CONFIG_FILE = "database.cfg";
+    public static final String QUESTION_COLUMN_NAME = "question";
 
     public static final String KEY_HOSTNAME = "hostname";
     public static final String KEY_DATABASE_NAME = "database_name";
@@ -53,15 +60,28 @@ public class RemoteDatabaseHelper {
     private final String mQuestionnaireId;
     private final String mTimestamp;
     private final String mTableName;
-    //    private final JSONContentValues mResponses;
-    private final JSONKeyValuePair[] mResponses;
+    private final JSONResponseWrapper[] mResponses;
 
     private final String mHostname;
     private final String mDatabaseName;
     private final String mUsername;
     private final String mPassword;
 
-    private PreparedStatement mInsertStatement;
+    /**
+     * Mapping of names of class to the PostgreSQL datatypes that should be used to store them.
+     * This could be stored in a file but this class needs to be modified anyway to add insertion behaviour of new types so might as well have the two in the same place.
+     */
+    private static final Map<String,String> sDatatypesMap = new HashMap<String,String>();
+    static {
+        sDatatypesMap.put(Boolean.class.getCanonicalName(),     "BOOLEAN"   );
+        sDatatypesMap.put(Byte.class.getCanonicalName(),        "SMALLINT"  );
+        sDatatypesMap.put(Double.class.getCanonicalName(),      "FLOAT8"    );
+        sDatatypesMap.put(Float.class.getCanonicalName(),       "FLOAT4"    );
+        sDatatypesMap.put(Integer.class.getCanonicalName(),     "INTEGER"   );
+        sDatatypesMap.put(Long.class.getCanonicalName(),        "BIGINT"    );
+        sDatatypesMap.put(Short.class.getCanonicalName(),       "SMALLINT"  );
+        sDatatypesMap.put(String.class.getCanonicalName(),      "TEXT"      );
+    }
 
     private Connection mDatabaseConnection;
 
@@ -72,14 +92,13 @@ public class RemoteDatabaseHelper {
         mTimestamp = timestamp;
         mTableName = mQuestionnaireId.replace(' ','_');
 
-        JSONContentValues responsesJSONContentValues = new JSONContentValues(responsesString);
-        mResponses = new JSONKeyValuePair[ responsesJSONContentValues.length() ];
-        for (int i=0; i<responsesJSONContentValues.length(); i++) {
-            mResponses[i] = (JSONKeyValuePair) responsesJSONContentValues.get(i);
+        JSONResponsesWrapper responsesJSONResponsesWrapper = new JSONResponsesWrapper(responsesString);
+        mResponses = new JSONResponseWrapper[ responsesJSONResponsesWrapper.length() ];
+        for (int i = 0; i< responsesJSONResponsesWrapper.length(); i++) {
+            mResponses[i] = (JSONResponseWrapper) responsesJSONResponsesWrapper.get(i);
         }
 
         // Read config file for host, name, user & password
-//        BufferedReader configReader = null;
         FileInputStream inStream = null;
         FileOutputStream outStream = null;
         try {
@@ -94,7 +113,6 @@ public class RemoteDatabaseHelper {
                 defaultProperties.setProperty(KEY_PASSWORD, DEFAULT_PASSWORD);
                 outStream = new FileOutputStream(configFile);
                 defaultProperties.store(outStream, "Inspiring Futures database configuration");
-//                throw new RuntimeException("Configuration file not found, new file created with default properties");
                 // Attempt to use default properties
                 mHostname = DEFAULT_HOSTNAME;
                 mDatabaseName = DEFAULT_DATABASE_NAME;
@@ -153,31 +171,31 @@ public class RemoteDatabaseHelper {
         } else {
             // Create table, inferring column types from responses
             StringBuilder createStatement = new StringBuilder("CREATE TABLE " + mTableName + "(" + TABLE_BASE_COLUMNS);
-            for (JSONKeyValuePair sampleKVPair : mResponses) {
-                String questionColumn = ", " + sampleKVPair.getKey() + " ";
-
-                Object sampleResponse = sampleKVPair.getValue();
-                // byte[], Boolean, Byte, Double, Float, Integer, Long, Short, String
-                if (sampleResponse instanceof byte[]) {
-                    // TODO Wrap byte[] in a JSON holding filetype, save and file on server with filename in database
-                    questionColumn += "BYTEA";
-                } else if (sampleResponse instanceof Boolean) {
-                    questionColumn += "BOOLEAN";
-                } else if (sampleResponse instanceof Byte) {
-                    questionColumn += "SMALLINT";
-                } else if (sampleResponse instanceof Double) {
-                    questionColumn += "FLOAT8";
-                } else if (sampleResponse instanceof Float) {
-                    questionColumn += "FLOAT4";
-                } else if (sampleResponse instanceof Integer) {
-                    questionColumn += "INTEGER";
-                } else if (sampleResponse instanceof Long) {
-                    questionColumn += "BIGINT";
-                } else if (sampleResponse instanceof Short) {
-                    questionColumn += "SMALLINT";
-                } else if (sampleResponse instanceof String) {
-                    questionColumn += "TEXT";
-                }
+            int num = 1;
+            for (JSONResponseWrapper sampleKVPair : mResponses) {
+                String questionColumn = ", " + QUESTION_COLUMN_NAME + num++ + " " + sDatatypesMap.get(sampleKVPair.getValueType());
+//                Object sampleResponse = sampleKVPair.getValue();
+//                // byte[], Boolean, Byte, Double, Float, Integer, Long, Short, String
+//                if (sampleResponse instanceof byte[]) {
+//                    // TODO Wrap byte[] in a JSON holding filetype, save and file on server with filename in database
+//                    questionColumn += "BYTEA";
+//                } else if (sampleResponse instanceof Boolean) {
+//                    questionColumn += "BOOLEAN";
+//                } else if (sampleResponse instanceof Byte) {
+//                    questionColumn += "SMALLINT";
+//                } else if (sampleResponse instanceof Double) {
+//                    questionColumn += "FLOAT8";
+//                } else if (sampleResponse instanceof Float) {
+//                    questionColumn += "FLOAT4";
+//                } else if (sampleResponse instanceof Integer) {
+//                    questionColumn += "INTEGER";
+//                } else if (sampleResponse instanceof Long) {
+//                    questionColumn += "BIGINT";
+//                } else if (sampleResponse instanceof Short) {
+//                    questionColumn += "SMALLINT";
+//                } else if (sampleResponse instanceof String) {
+//                    questionColumn += "TEXT";
+//                }
                 createStatement.append(questionColumn);
             }
             createStatement.append(")");
@@ -200,42 +218,37 @@ public class RemoteDatabaseHelper {
         String valuesString = " VALUES(" +
                 "'" + mDeviceId + "'" + ", " +
                 "TO_TIMESTAMP(" + mTimestamp + ")";
-        for (JSONKeyValuePair response : mResponses) {
-            insertStatement += ", " + response.getKey();
+        int num = 1;
+        for (JSONResponseWrapper response : mResponses) {
+            insertStatement += ", " + QUESTION_COLUMN_NAME + num++;
             valuesString += ", ?";
         }
         insertStatement += ")" + valuesString + ")";
-        mInsertStatement = mDatabaseConnection.prepareStatement( insertStatement );
-
-        return mInsertStatement;
+        return mDatabaseConnection.prepareStatement( insertStatement );
     }
 
-    private void insert() throws JSONException, SQLException {
+    private void insert(PreparedStatement insertStatement) throws JSONException, SQLException {
         for (int i=0; i<mResponses.length; i++) {
-            Object value = mResponses[i].getValue();
-            if (value instanceof byte[]) {
-                // TODO Don't know if this will work - Change to store filenames
-                mInsertStatement.setBytes(i+1, (byte[]) value);
-//                mInsertStatement.setBlob(i+1, new ByteArrayInputStream((byte[]) value) );
-            } else if (value instanceof Boolean) {
-                mInsertStatement.setBoolean(i+1, (Boolean) value);
+            Serializable value = mResponses[i].getValue();
+            if (value instanceof Boolean) {
+                insertStatement.setBoolean(i+1, (Boolean) value);
             } else if (value instanceof Byte) {
-                mInsertStatement.setByte(i+1, (Byte) value);
+                insertStatement.setByte(i+1, (Byte) value);
             } else if (value instanceof Double) {
-                mInsertStatement.setDouble(i+1, (Double) value);
+                insertStatement.setDouble(i+1, (Double) value);
             } else if (value instanceof Float) {
-                mInsertStatement.setFloat(i+1, (Float) value);
+                insertStatement.setFloat(i+1, (Float) value);
             } else if (value instanceof Integer) {
-                mInsertStatement.setInt(i+1, (Integer) value);
+                insertStatement.setInt(i+1, (Integer) value);
             } else if (value instanceof Long) {
-                mInsertStatement.setLong(i+1, (Long) value);
+                insertStatement.setLong(i+1, (Long) value);
             } else if (value instanceof Short) {
-                mInsertStatement.setShort(i+1, (Short) value);
+                insertStatement.setShort(i+1, (Short) value);
             } else if (value instanceof String) {
-                mInsertStatement.setString(i+1, (String) value);
+                insertStatement.setString(i+1, (String) value);
             }
         }
-        mInsertStatement.execute();
+        insertStatement.execute();
     }
 
     public class RemoteDatabaseSchema {
@@ -246,20 +259,6 @@ public class RemoteDatabaseHelper {
     }
 
     public static void main(String[] args) {
-//        // TODO IMORTANT Delete this if block, for troubleshooting only
-//        if (2 <= args.length) {
-//            try {
-//                File testfile = new File("test.txt");
-//                testfile.createNewFile();
-//                FileOutputStream outStream = new FileOutputStream(testfile);
-//                outStream.write(args[0].getBytes());
-//                outStream.write("\n".getBytes());
-//                outStream.write(args[1].getBytes());
-//            } catch (IOException e) {
-//                e.printStackTrace();
-//            }
-//        }
-
         if (4 == args.length) {
             RemoteDatabaseHelper helper = null;
             try {
@@ -270,10 +269,11 @@ public class RemoteDatabaseHelper {
                 helper = new RemoteDatabaseHelper(deviceId, questionnaireId, timestamp, responses);
                 helper.openDatabase();
                 helper.createTable();
-                helper.createInsertStatement();
-                helper.insert();
+                helper.insert(
+                    helper.createInsertStatement()
+                );
             } catch (SQLException | JSONException e) {
-                // Do something here?
+                // TODO Do something here?
                 e.printStackTrace();
             } finally {
                 if (null != helper) {

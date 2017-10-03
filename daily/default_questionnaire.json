@@ -1,0 +1,50 @@
+{
+    "questionnaire_id": "daily_test",
+    "questions_array": [
+        {
+            "esm_type": "uk.ac.cam.crim.inspiringfutures.ESM.ESM_Info",
+            "question": "Test info title",
+            "instructions": "<p>You can put HTML text here<\/p>\n<h1>Heading 1<\/h1>\n<h1>Heading 2<\/h1>\n<h3>Heading 3<\/h3>\n<h4>Heading 4<\/h4>\n<p><strong>Bold<\/strong>, <em>italic<\/em> and <span style=\"text-decoration: underline;\">underlined<\/span> text<\/p>\n<p><span style=\"color: #ff0000;\">Red<\/span>, <span style=\"color: #00ff00;\">green<\/span> and <span style=\"color: #0000ff;\">blue<\/span> text<\/p>"
+        },
+        {
+            "esm_type": "uk.ac.cam.crim.inspiringfutures.ESM.ESM_Text",
+            "question": "Test text question",
+            "instructions": "Test text instructions"
+        },
+        {
+            "esm_type": "uk.ac.cam.crim.inspiringfutures.ESM.ESM_Radios",
+            "esm_options": [
+                "Option 1",
+                "Option 2",
+                "Option 3",
+                "Option 4",
+                "Option 5",
+                "Option 6",
+                "Option 7",
+                "Option 8",
+                "Option 9",
+                "*Other"
+            ],
+            "question": "*Test radio question",
+            "instructions": "Test radio instructions"
+        },
+        {
+            "esm_type": "uk.ac.cam.crim.inspiringfutures.ESM.ESM_CheckBoxes",
+            "max_selection": 3,
+            "esm_options": [
+                "Option 1",
+                "Option 2",
+                "Option 3",
+                "Option 4",
+                "Option 5",
+                "Option 6",
+                "Option 7",
+                "Option 8",
+                "Option 9",
+                "Other"
+            ],
+            "question": "Test checkboxes question",
+            "instructions": "Test checkboxes instructions"
+        }
+    ]
+}
