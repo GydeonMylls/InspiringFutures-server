@@ -16,14 +16,14 @@
 
 package uk.ac.cam.crim.inspiringfutures.JSONWrappers;
 
-import android.util.Log;
+//import android.util.Log;
+
 import org.json.JSONException;
 import org.json.JSONObject;
+import uk.ac.cam.crim.inspiringfutures.server.Log;
 
 import java.io.Serializable;
 import java.lang.reflect.InvocationTargetException;
-
-//import uk.ac.cam.crim.inspiringfutures.server.Log;  // Toggle as necessary
 
 /**
  * Contains methods to represent a ContentValues-compatible key-value pair in a JSON object
