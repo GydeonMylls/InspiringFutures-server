@@ -1,10 +1,10 @@
-#Course management
+# Course management
 The list of courses and their passwords is stored in programmes.txt. Passwords are stored in secure SHA256 hashed form. You can add a course and its password using the add_password script, e.g.
 
     ./addpassword "Course name" "password"
 To change passwords simply delete the relevant line from programmes.txt and add it again with the new password (the daily questionnaire will be preserved)
 
-##Daily questionnaires
+## Daily questionnaires
 Each course has a questionnaire stored in Course_Name.json (spaces in the course name are replaced with underscores) that is shown to users every day. This is only downloaded to the user's device when they join the course, so if you change it it will only affect new users. When you add a course a default questionnaire is loaded into this file.
 
 #Questionnaires
@@ -20,7 +20,7 @@ The name of the questionnaire is stored in `questionnaire_id`, this determines w
 The `questions_array` field holds the list of questions (separated by commas) in the order they are to be shown.
 See appendix B for notes on editing questionnaires;
 
-#Questions
+# Questions
 Questions are in the format:
 
     {
@@ -30,7 +30,7 @@ Questions are in the format:
     }
 These fields are fairly self-explanatory and are common to all question types, other questions may have further fields. The types of question available as of 27/09/2017 are given below. A question may be marked as compulsory may starting the `question` field with an asterisk (`*`), see appendix A for an example.
 
-##Text
+## Text
 Allows the user to enter text. E.g. 
 
     {
@@ -43,7 +43,7 @@ Allows the user to enter text. E.g.
 Multiple choice questions have an `esm_options` options field that holds a list of options. If `Other` is given as an option the user will have the option to provide more details. This can be preceded with an asterisk (i.e. `*Other`) to require the user to provide further details if they select this option. See appendix A for examples of both of these.
 The responses are stored in the database as a comma-separated list of options.
 
-###Radio buttons
+### Radio buttons
 The user can select only one option
 
     {
@@ -57,7 +57,7 @@ The user can select only one option
         ]
     }
 
-###Checkboxes
+### Checkboxes
 The user can select multiple options. The `max_selection` field can be included to give a maximum number of selected options. Omitting this produces no limit.
 
     {
@@ -72,7 +72,7 @@ The user can select multiple options. The `max_selection` field can be included 
         ]
     }
     
-##Information
+## Information
 This is not in fact a question but can be used to provide information to the user. This might be, for example, and introduction to the questionnaire or a description of what the next section of the questionnaire is about.
 The `question` field is displayed as a title as is normal questions. The `instructions` field can contain HTML tags, although not all tags will display properly on all devices. In the `instructions` field you can start a new line by typing`\n` and slashes (`/ `) must be preceded with a backslash (`\ `), see an example below.
 
@@ -83,7 +83,7 @@ The `question` field is displayed as a title as is normal questions. The `instru
     }
 A column will be created in the database table for information questions, but will be left blank.
 
-##Photo
+## Photo
 The user can take a picture with their phone camera, which will then be uploaded and saved in the `files` folder. Currently this cannot be compulsory.
 
             {
@@ -98,7 +98,7 @@ Users' responses to questionnaires are uploaded daily (when they are connected t
 For each questionnaire a table is created with the id of that questionnaire and the responses are stored therein, in columns `question1`, `question2`etc. No record is kept in the database of the actual questions asked.
 
 
-#Appendix A: Example questionnaire
+# Appendix A: Example questionnaire
 
     {
         "questionnaire_id": "daily_test",
@@ -144,5 +144,5 @@ For each questionnaire a table is created with the id of that questionnaire and 
         ]
     }
 
-#Appendix B: Editing JSON files
+# Appendix B: Editing JSON files
 Questions and questionnaires are stored as JSON files. These can be edited with any text editor. However to avoid mistakes such as missing commas or brackets you might prefer to use an online JSON editor such as this one: [http://jsoneditoronline.org/](http://jsoneditoronline.org/)
